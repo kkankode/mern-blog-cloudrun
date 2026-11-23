@@ -1,0 +1,9 @@
+node_modules
+npm-debug.log
+.env
+.env.*
+src/__tests__
+src/test
+jest.config.js
+coverage
+.git

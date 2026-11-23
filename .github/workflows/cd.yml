@@ -1,0 +1,66 @@
+name: CD to Cloud Run
+
+on:
+  push:
+    branches: [ main ]
+
+env:
+  GCP_REGION: asia-south1
+  DOCKERHUB_USER: kartavya005
+  BACKEND_URL: https://blog-backend-1059603673694.asia-south1.run.app/api/v1
+
+jobs:
+  build-and-deploy:
+    name: Build, Push & Deploy to Cloud Run
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: true
+          tags: ${{ env.DOCKERHUB_USER }}/blog-backend:latest
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push: true
+          build-args: |
+            VITE_BACKEND_URL=${{ env.BACKEND_URL }}
+          tags: ${{ env.DOCKERHUB_USER }}/blog-frontend:latest
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy backend to Cloud Run
+        run: |
+          gcloud run deploy blog-backend \
+            --image ${{ env.DOCKERHUB_USER }}/blog-backend:latest \
+            --region ${{ env.GCP_REGION }} \
+            --platform managed \
+            --port 3000 \
+            --allow-unauthenticated
+
+      - name: Deploy frontend to Cloud Run
+        run: |
+          gcloud run deploy blog-frontend \
+            --image ${{ env.DOCKERHUB_USER }}/blog-frontend:latest \
+            --region ${{ env.GCP_REGION }} \
+            --platform managed \
+            --port 80 \
+            --allow-unauthenticated
